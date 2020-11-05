@@ -1,3 +1,5 @@
+from os import environ
+import alpha_vantage as av
 
 INDEX_TICKERS = {
     'JNJ', 'UNH', 'PFE', 'MRK', 'TMO', 'ABT',  # US Healthcare
@@ -12,3 +14,5 @@ INDEX_TICKERS = {
     'NEE', 'DUK', 'D', 'SO', 'AEP', 'EXC', 'XEL', 'SRE',  # US Utilities
     'LIN', 'APD', 'SHW', 'NEM', 'ECL', 'DD', 'PPG', 'BLL',  # US Materials
     }
+
+
