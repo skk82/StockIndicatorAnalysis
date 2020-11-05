@@ -2,7 +2,7 @@
 INDEX_TICKERS = {
     'JNJ', 'UNH', 'PFE', 'MRK', 'TMO', 'ABT',  # US Healthcare
     'ATVI', 'CMCSA', 'VZ', 'NFLX', 'DIS', 'T',  # US Communications
-    'AAPL', 'MSFT', 'NVDA', 'V', 'MA', 'CRM', 'PYPL',  # US Technology TODO: V, MA, CRM
+    'AAPL', 'MSFT', 'NVDA', 'ADBE', 'INTC', 'CSCO', 'PYPL',  # US Technology
     'AMZN', 'HD', 'MCD', 'NKE', 'LOW', 'SBUX', 'TGT',  # US Consumer Discretionary
     'AMT', 'PLD', 'CCI', 'EQIX', 'DLR', 'PSA', 'SBAC', 'WELL',  # US Real Estate TODO: EQIX, DLR
     'CVX', 'XOM', 'KMI', 'WMB', 'COP', 'SLB', 'MPC', 'PSX',  # US Energy TODO: KMI, MPC, PSX
