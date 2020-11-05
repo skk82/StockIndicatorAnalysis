@@ -6,7 +6,7 @@ INDEX_TICKERS = {
     'AMZN', 'HD', 'MCD', 'NKE', 'LOW', 'SBUX', 'TGT',  # US Consumer Discretionary
     'AMT', 'PLD', 'CCI', 'WY', 'AVB', 'PSA', 'SBAC', 'WELL',  # US Real Estate
     'CVX', 'XOM', 'KMI', 'WMB', 'COP', 'SLB', 'VLO', 'PXD',  # US Energy
-    'PG', 'WMT', 'KO', 'PEP', 'COST', 'MDLZ', 'CL', 'MO',  # US Consumer Staples TODO: MDLX
+    'PG', 'WMT', 'KO', 'PEP', 'COST', 'EL', 'CL', 'MO',  # US Consumer Staples
     'UNP', 'HON', 'UPS', 'MMM', 'CAT', 'LMT', 'RTX', 'BA',  # US Industrials TODO: KMI, MPC, PSX
     'BRK.B', 'JPM', 'BAC', 'WFC', 'C', 'BLK', 'SPGI', 'MS',  # US Financials
     'NEE', 'DUK', 'D', 'SO', 'AEP', 'EXC', 'XEL', 'SRE',  # US Utilities
