@@ -5,7 +5,7 @@ INDEX_TICKERS = {
     'AAPL', 'MSFT', 'NVDA', 'ADBE', 'INTC', 'CSCO', 'PYPL',  # US Technology
     'AMZN', 'HD', 'MCD', 'NKE', 'LOW', 'SBUX', 'TGT',  # US Consumer Discretionary
     'AMT', 'PLD', 'CCI', 'WY', 'AVB', 'PSA', 'SBAC', 'WELL',  # US Real Estate
-    'CVX', 'XOM', 'KMI', 'WMB', 'COP', 'SLB', 'MPC', 'PSX',  # US Energy TODO: KMI, MPC, PSX
+    'CVX', 'XOM', 'KMI', 'WMB', 'COP', 'SLB', 'VLO', 'PXD',  # US Energy
     'PG', 'WMT', 'KO', 'PEP', 'COST', 'MDLZ', 'CL', 'MO',  # US Consumer Staples TODO: MDLX
     'UNP', 'HON', 'UPS', 'MMM', 'CAT', 'LMT', 'RTX', 'BA',  # US Industrials TODO: KMI, MPC, PSX
     'BRK.B', 'JPM', 'BAC', 'WFC', 'C', 'BLK', 'SPGI', 'MS',  # US Financials
