@@ -7,8 +7,8 @@ INDEX_TICKERS = {
     'AMT', 'PLD', 'CCI', 'WY', 'AVB', 'PSA', 'SBAC', 'WELL',  # US Real Estate
     'CVX', 'XOM', 'KMI', 'WMB', 'COP', 'SLB', 'VLO', 'PXD',  # US Energy
     'PG', 'WMT', 'KO', 'PEP', 'COST', 'EL', 'CL', 'MO',  # US Consumer Staples
-    'UNP', 'HON', 'UPS', 'MMM', 'CAT', 'LMT', 'RTX', 'BA',  # US Industrials TODO: KMI, MPC, PSX
+    'UNP', 'HON', 'UPS', 'MMM', 'CAT', 'LMT', 'RTX', 'BA',  # US Industrials
     'BRK.B', 'JPM', 'BAC', 'WFC', 'C', 'BLK', 'SPGI', 'MS',  # US Financials
     'NEE', 'DUK', 'D', 'SO', 'AEP', 'EXC', 'XEL', 'SRE',  # US Utilities
-    'LIN', 'APD', 'SHW', 'NEM', 'ECL', 'DD', 'PPG', 'DOW',  # US Materials TODO: DOW
+    'LIN', 'APD', 'SHW', 'NEM', 'ECL', 'DD', 'PPG', 'BLL',  # US Materials
     }
