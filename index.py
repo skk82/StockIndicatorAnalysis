@@ -15,5 +15,3 @@ INDEX_TICKERS = {
     'NEE', 'DUK', 'D', 'SO', 'AEP', 'EXC', 'XEL', 'SRE',  # US Utilities
     'LIN', 'APD', 'SHW', 'NEM', 'ECL', 'DD', 'PPG', 'DOW',  # US Materials
     }
-
-print(len(INDEX_TICKERS))
