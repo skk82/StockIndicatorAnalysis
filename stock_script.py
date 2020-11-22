@@ -1,3 +1,5 @@
+import os
+
 from pandas_datareader import data as wb
 
 INDEX_TICKERS = {
@@ -15,7 +17,66 @@ INDEX_TICKERS = {
     }
 
 
-for y in INDEX_TICKERS:
-    for t in INDEX_TICKERS[y]:
-        x = wb.DataReader(t, data_source='yahoo', start='2000-01-01')
-        x.to_csv('/Users/siddharthkantamneni/Documents/Grad School/project/'+t+'.csv')
+def get_index(start: str, end: str, tickers: [dict, str], path: str = './indices/', **kwargs) -> None:
+    """
+    Retrieves pricing data for stocks and saves the prices to individual csv files. Can be run via command line
+    with arguments passed as parameter=value
+
+    :param start: A string of format YYYY-MM-dd for the first date to pull data from
+    :param end: A string of format YYYY-MM-dd for the last date to pull data from
+    :param tickers: Either a dictionary or a txt file containing a dictionary with industries as the keys and a list
+    of tickers as the values
+    :param path: The path to the directory to save all of csv files
+    :rtype: Returns nothing. Saves csv files containing daily prices to a specified directory
+    """
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    if type(tickers) == str:
+        import json
+        with open(tickers) as file:
+            data = file.read()
+        tickers = json.loads(data)
+
+    for industry in tickers:
+        for tick in tickers[industry]:
+            data = wb.DataReader(tick, data_source='yahoo', start=start, end=end)
+            data.insert(0, 'industry', industry)
+            full_path = path+f"{tick}_{start.split('-')[0]}.{start.split('-')[1]}.{start.split('-')[2]}_{end.split('-')[0]}.{end.split('-')[1]}.{end.split('-')[2]}.csv"
+            data.to_csv(full_path)
+
+    print('Data Retrieved!')
+    print(f'Start: {start}, End: {end}')
+    print(f'Data stored in folder: {path}')
+    full_path = f"<ticker>_{start.split('-')[0]}.{start.split('-')[1]}.{start.split('-')[2]}_{end.split('-')[0]}.{end.split('-')[1]}.{end.split('-')[2]}.csv"
+    print(f"File formats: {full_path}")
+
+
+if __name__ == '__main__':
+    from sys import argv
+    from datetime import date
+    from datetime import datetime
+    from dateutil import relativedelta
+    try:
+        params = dict(arg.split('=') for arg in argv[1:])
+        if 'end' not in params:
+            params['end'] = date.today().strftime(format='%Y-%m-%d')
+        if 'start' not in params:
+            print(datetime.strptime(params['end'], '%Y-%m-%d'))
+            print((datetime.strptime(params['end'], '%Y-%m-%d') - relativedelta(years=2)))
+            print((datetime.strptime(params['end'], '%Y-%m-%d') - relativedelta(years=2)).date())
+            params['start'] = (datetime.strptime(params['end'], '%Y-%m-%d')-relativedelta(years=2)).date().strftime(
+                     format='%Y-%m-%d')
+        if 'tickers' not in params:
+            params['tickers'] = INDEX_TICKERS
+        get_index(**params)
+    except KeyError as e:
+        print(e, '\n')
+        print(argv, '\n')
+        help(get_index)
+
+    except ValueError as e:
+        print(e, '\n')
+        print(argv, '\n')
+        help(get_index)
