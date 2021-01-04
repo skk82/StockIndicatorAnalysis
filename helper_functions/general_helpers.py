@@ -1,25 +1,4 @@
-from datetime import datetime, date
 from talib import MA_Type
-
-
-def check_convert_date(var, name):
-    if type(var) not in (date, datetime, str):
-        while True:
-            try:
-                str_date = input(f'Please enter a valid date for the {name} date using the pattern YYYY-MM-DD:\n')
-                return datetime.strptime(str_date, '%Y-%m-%d').date()
-            except ValueError:
-                pass
-    elif type(var) is str:
-        while True:
-            try:
-                return datetime.strptime(var, '%Y-%m-%d').date()
-            except ValueError:
-                var = input(f'Please enter a valid date for the {name} date using the pattern YYYY-MM-DD:\n')
-    elif type(var) is datetime:
-        return var.date()
-    else:
-        return var
 
 
 def check_list_options(var, options, name):
