@@ -6,6 +6,7 @@ from alpha_vantage.timeseries import TimeSeries
 from dateutil.relativedelta import relativedelta
 from talib import abstract as ta
 
+from errors import NoTickerError
 from alias.alias import Alias, aliased
 from helper_functions.general_helpers import check_convert_date, check_list_options, check_matype, check_series_type
 
