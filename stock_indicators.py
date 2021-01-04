@@ -6,10 +6,8 @@ from alpha_vantage.timeseries import TimeSeries
 from dateutil.relativedelta import relativedelta
 from talib import abstract as ta
 
-from functions.alias.alias import Alias, aliased
-from functions.errors import NoTickerError
-from functions.helper_functions.general_helpers import check_convert_date, check_list_options, check_matype, \
-    check_series_type
+from alias.alias import Alias, aliased
+from helper_functions.general_helpers import check_convert_date, check_list_options, check_matype, check_series_type
 
 
 alpha_vantage_KEY = '7ZDI2M6PEWCEOSFC'
