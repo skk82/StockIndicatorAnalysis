@@ -8,12 +8,6 @@ from helper_functions.general_helpers import check_matype, check_series_type
 @aliased
 class StockIndicatorCalculator:
 
-    # def __str__(self):
-    #     if self.__dates_bool:
-    #         return self.ticker + f' dates: {self.start}-{self.end} ({self.interval})'
-    #     else:
-    #         return self.ticker + f' period: {self.period} ({self.interval})'
-
     # Basic Averages
 
     @Alias('sma', 'SMA')
