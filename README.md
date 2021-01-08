@@ -1,7 +1,7 @@
 # Stock Indicator Analysis
-Siddharth Kantamneni
+Siddharth Kantamneni (skk82@cornell.edu)
 
-Kyle Walsh
+Kyle Walsh (kew96@cornell.edu)
 
 ## Project Goals
 While this is an ongoing research project, we are implementing some of the most common equity models and exploring 
