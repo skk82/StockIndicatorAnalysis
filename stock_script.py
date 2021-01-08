@@ -1,5 +1,6 @@
 import os
 
+from tqdm.auto import tqdm
 from pandas_datareader import data as wb
 
 INDEX_TICKERS = {
@@ -39,8 +40,8 @@ def get_index(start: str, end: str, tickers: [dict, str], path: str = './indices
             data = file.read()
         tickers = json.loads(data)
 
-    for industry in tickers:
-        for tick in tickers[industry]:
+    for industry in tqdm(tickers, desc=' Industries', position=0):
+        for tick in tqdm(tickers[industry], desc=f' {industry}', position=1, leave=False):
             data = wb.DataReader(tick, data_source='yahoo', start=start, end=end)
             data.insert(0, 'industry', industry)
             full_path = path+f"{tick}_{start.split('-')[0]}.{start.split('-')[1]}.{start.split('-')[2]}_{end.split('-')[0]}.{end.split('-')[1]}.{end.split('-')[2]}.csv"
