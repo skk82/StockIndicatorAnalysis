@@ -1,6 +1,6 @@
 import os
 
-from tqdm.auto import tqdm
+from tqdm import tqdm
 from pandas_datareader import data as wb
 
 INDEX_TICKERS = {
