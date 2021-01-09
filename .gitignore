@@ -1,3 +1,5 @@
 .idea/
 venv/
 /indices/
+.ipynb_checkpoints/
+.virtual_documents/
