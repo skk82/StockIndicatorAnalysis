@@ -1,11 +1,10 @@
-import queue
+from multiprocessing import Pool, cpu_count
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from tqdm import tqdm
-from multiprocessing import Pool, cpu_count, Process, Queue
-from functools import partial
 
 
 class MinimumVariancePortfolio:
@@ -102,5 +101,3 @@ class MinimumVariancePortfolio:
         vol = np.sqrt(np.dot(weights.T, np.dot(log_ret.cov() * 252, weights)))
         sharpe = ret / vol
         return ret, vol, sharpe
-
-
