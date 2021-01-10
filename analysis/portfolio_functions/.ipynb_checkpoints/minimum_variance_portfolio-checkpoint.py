@@ -1,18 +1,13 @@
-import queue
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
-from tqdm import tqdm
-from multiprocessing import Pool, cpu_count, Process, Queue
-from functools import partial
 
 
 class MinimumVariancePortfolio:
 
     def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.__log_ret = None
 
     def plot_minimum_variance_frontier(self, column='Close', *, industry='ALL', iters=5000, points=300,
                                        figsize=(12, 8), seed=42):
@@ -21,61 +16,58 @@ class MinimumVariancePortfolio:
             df = self.df.pivot_table(values=column, index='Date', columns='ticker')
         else:
             df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
-
         log_ret = np.log(df / df.shift(1))
-        self.__log_ret = log_ret
 
         weights, rets, vols, sharpe = self._sim_portfolios(log_ret, iters)
+
         max_ret = rets[sharpe.argmax()]
         max_vol = vols[sharpe.argmax()]
 
+        # max_sharpe_port = self._calc_ret_vol_sharpe(log_ret, self.max_sharpe_portfolio(log_ret=log_ret))
+
         frontier_returns = np.linspace(0, np.max(rets), points)
+        frontier_vols = np.array([])
 
-        with Pool(processes=cpu_count()-1) as pool:
-            ret_weights = list(tqdm(pool.imap_unordered(self.weights_for_return, frontier_returns),
-                                    desc='Creating Frontier', total=points))
-
-        frontier_vols = [self._calc_ret_vol_sharpe(log_ret, w)[1] for w in ret_weights]
+        for ret in frontier_returns:
+            ret_weights = self.weights_for_return(ret, log_ret=log_ret)
+            frontier_vols = np.append(frontier_vols, self._calc_ret_vol_sharpe(log_ret, ret_weights)[1])
 
         plt.figure(figsize=figsize)
-        plt.xlabel('Volatility')
-        plt.ylabel('Return')
-
         plt.scatter(vols, rets, c=sharpe, cmap='viridis')
         plt.colorbar(label='Sharpe Ratio')
-
+        plt.xlabel('Volatility')
+        plt.ylabel('Return')
         plt.scatter(max_vol, max_ret, c='red', s=50)
 
-        plt.plot(frontier_vols, frontier_returns, ':', color='orange', linewidth=2)
+        plt.plot(frontier_vols, frontier_returns, 'o:', linewidth=2)
         plt.show()
 
     def max_sharpe_portfolio(self, *, column='Close', industry='ALL', log_ret=None):
-        if not isinstance(log_ret, pd.DataFrame):
+        if not log_ret:
             if industry == 'ALL':
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
             else:
                 df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
             log_ret = np.log(df / df.shift(1))
+        print()
         neg_sharpe = lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[2]
-        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]
-        bounds = ((0, 1),) * log_ret.shape[1]
+        guess = np.ones(df.shape[1]) / df.shape[1]
+        bounds = ((0, 1),) * df.shape[1]
         constraints = ({'type': 'eq', 'fun': lambda weights: 1 - np.sum(weights)},)
         results = minimize(neg_sharpe, guess, method='SLSQP', options={'disp': False}, bounds=bounds,
                            constraints=constraints)
-        return results
+        return results.x
 
     def weights_for_return(self, ret_val, *, column='Close', industry='ALL', log_ret=None):
-        if not isinstance(log_ret, pd.DataFrame) and not isinstance(self.__log_ret, pd.DataFrame):
+        if not log_ret:
             if industry == 'ALL':
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
             else:
                 df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
             log_ret = np.log(df / df.shift(1))
-        elif isinstance(self.__log_ret, pd.DataFrame):
-            log_ret = self.__log_ret
-        min_vol = lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[1]
-        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]
-        bounds = ((0, 1),) * log_ret.shape[1]
+        min_vol = lambda weights: self._calc_ret_vol_sharpe(log_ret)[1]
+        guess = np.ones(df.shape[1]) / df.shape[1]
+        bounds = ((0, 1),) * df.shape[1]
         constraints = ({'type': 'eq', 'fun': lambda weights: 1 - np.sum(weights)},
                        {'type': 'eq', 'fun': lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[0]-ret_val})
         results = minimize(min_vol, guess, method='SLSQP', options={'disp': False}, bounds=bounds,
@@ -88,7 +80,7 @@ class MinimumVariancePortfolio:
         vols = np.zeros(iters)
         sharpe = np.zeros(iters)
 
-        for i in tqdm(range(iters), desc='Simulating Portfolios'):
+        for i in range(iters):
             whole_weights = np.random.random(log_ret.shape[1])
             weights[i, :] = whole_weights / np.sum(whole_weights)
 
