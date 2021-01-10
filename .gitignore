@@ -1,5 +1,6 @@
 .idea/
 venv/
 /indices/
-*/.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
 /.virtual_documents/
+*-checkpoint.py
