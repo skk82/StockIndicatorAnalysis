@@ -3,7 +3,7 @@ from multiprocessing import Pool, cpu_count
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 from tqdm import tqdm
 
 
@@ -21,31 +21,42 @@ class MinimumVariancePortfolio:
         else:
             df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
 
-        log_ret = np.log(df / df.shift(1))
+        # log_ret = np.log(df / df.shift(1))
+        log_ret = df.pct_change()
         self.__log_ret = log_ret
 
         weights, rets, vols, sharpe = self._sim_portfolios(log_ret, iters)
-        max_ret = rets[sharpe.argmax()]
-        max_vol = vols[sharpe.argmax()]
 
-        frontier_returns = np.linspace(0, np.max(rets), points)
+        ret_vol = rets[vols.argmin()]
+        vol_vol = vols.min()
 
-        with Pool(processes=cpu_count()-1) as pool:
+        min_var = weights[vols.argmin()]
+        max_sharpe = weights[sharpe.argmax()]
+
+        ret_sharpe, vol_sharpe, _ = self._calc_ret_vol_sharpe(log_ret, self.max_sharpe_portfolio().x)
+
+        frontier_returns = np.linspace(rets.min(), rets.max(), points)
+
+        with Pool(processes=cpu_count() - 1) as pool:
             ret_weights = list(tqdm(pool.imap_unordered(self.weights_for_return, frontier_returns),
                                     desc='Creating Frontier', total=points))
 
         frontier_vols = [self._calc_ret_vol_sharpe(log_ret, w)[1] for w in ret_weights]
 
+        plt.style.use('fivethirtyeight')
         plt.figure(figsize=figsize)
         plt.xlabel('Volatility')
         plt.ylabel('Return')
 
-        plt.scatter(vols, rets, c=sharpe, cmap='viridis')
+        plt.scatter(vols, rets, c=sharpe, cmap='YlGnBu', s=50, alpha=0.3)
         plt.colorbar(label='Sharpe Ratio')
 
-        plt.scatter(max_vol, max_ret, c='red', s=50)
+        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='red', s=250, label='Maximum Sharpe Ratio')
+        plt.scatter(vol_vol, ret_vol, marker='*', c='orange', s=250, label='Minimum Variance Portfolio')
 
         plt.plot(frontier_vols, frontier_returns, ':', color='orange', linewidth=2)
+
+        plt.legend(labelspacing=0.5, loc='best')
         plt.show()
 
     def max_sharpe_portfolio(self, *, column='Close', industry='ALL', log_ret=None):
@@ -54,12 +65,20 @@ class MinimumVariancePortfolio:
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
             else:
                 df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
-            log_ret = np.log(df / df.shift(1))
-        neg_sharpe = lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[2]
-        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]
-        bounds = ((0, 1),) * log_ret.shape[1]
-        constraints = ({'type': 'eq', 'fun': lambda weights: 1 - np.sum(weights)},)
-        results = minimize(neg_sharpe, guess, method='SLSQP', options={'disp': False}, bounds=bounds,
+            # log_ret = np.log(df / df.shift(1))
+            log_ret = df.pct_change()
+
+        def neg_sharpe(weights):
+            return -self._calc_ret_vol_sharpe(log_ret, weights)[2]  # Maximize Sharpe by minimizing negative Sharpe
+
+        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]  # Initial guess of equal weights
+        bounds = tuple((0, 1) for _ in range(log_ret.shape[1]))  # Only positive, un-leveraged positions
+        constraints = ({'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},)  # Weights must sum to 1
+        results = minimize(fun=neg_sharpe,
+                           x0=guess,
+                           method='SLSQP',
+                           options={'disp': False},
+                           bounds=bounds,
                            constraints=constraints)
         return results
 
@@ -69,15 +88,26 @@ class MinimumVariancePortfolio:
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
             else:
                 df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
-            log_ret = np.log(df / df.shift(1))
+            # log_ret = np.log(df / df.shift(1))
+            log_ret = df.pct_change()
         elif isinstance(self.__log_ret, pd.DataFrame):
             log_ret = self.__log_ret
-        min_vol = lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[1]
-        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]
-        bounds = ((0, 1),) * log_ret.shape[1]
-        constraints = ({'type': 'eq', 'fun': lambda weights: 1 - np.sum(weights)},
-                       {'type': 'eq', 'fun': lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[0]-ret_val})
-        results = minimize(min_vol, guess, method='SLSQP', options={'disp': False}, bounds=bounds,
+
+        def min_vol(weights):
+            return self._calc_ret_vol_sharpe(log_ret, weights)[1]  # Returns volatility given a set of weights
+
+        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]  # Initial Guess of equal weights
+        bounds = ((0, 1),) * log_ret.shape[1]  # Only positive, un-leveraged positions
+        bounds = Bounds((0,)*log_ret.shape[1], (1,)*log_ret.shape[1])
+        constraints = ({'type': 'eq',
+                        'fun': lambda weights: np.sum(weights) - 1},  # Ensures weights sum to 1
+                       {'type': 'eq',
+                        'fun': lambda weights: self._calc_ret_vol_sharpe(log_ret, weights)[0] - ret_val})  # Find desired return
+        results = minimize(fun=min_vol,
+                           x0=guess,
+                           method='SLSQP',
+                           options={'disp': True},
+                           bounds=bounds,
                            constraints=constraints)
         return results.x
 
@@ -97,7 +127,8 @@ class MinimumVariancePortfolio:
 
     @staticmethod
     def _calc_ret_vol_sharpe(log_ret, weights):
-        ret = np.sum(log_ret.mean() * weights) * 252
-        vol = np.sqrt(np.dot(weights.T, np.dot(log_ret.cov() * 252, weights)))
+        ret = np.dot(log_ret.mean(), weights) * 252
+        # ret = (np.sum(log_ret.mean() * weights) + 1) ** 252 - 1  # CHANGED
+        vol = np.sqrt(np.dot(weights.T, np.dot(log_ret.cov(), weights))) * np.sqrt(252)
         sharpe = ret / vol
         return ret, vol, sharpe
