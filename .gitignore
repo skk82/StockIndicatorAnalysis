@@ -3,4 +3,4 @@ venv/
 /indices/
 */.ipynb_checkpoints/*
 /.virtual_documents/
-*-checkpoint.py
+*/*-checkpoint.py
