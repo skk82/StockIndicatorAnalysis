@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize, Bounds
+from cvxopt import matrix, solvers
 from tqdm import tqdm
 
 
@@ -15,8 +16,8 @@ class MinimumVariancePortfolio:
 
     def plot_minimum_variance_frontier(self, column='Close', *, industry='ALL', iters=5000, points=300,
                                        figsize=(12, 8), seed=42):
-        assert points == 0 or points >= 300, '"points" must be 0 or greater than 300 to ensure that any curve plotted' \
-                                             'is smooth'
+        # assert points == 0 or points >= 300, '"points" must be 0 or greater than 300 to ensure that any curve plotted' \
+        #                                      'is smooth'
         np.random.seed(seed)
         if industry == 'ALL':
             df = self.df.pivot_table(values=column, index='Date', columns='ticker')
@@ -33,13 +34,23 @@ class MinimumVariancePortfolio:
 
         ret_sharpe, vol_sharpe, _ = self._calc_ret_vol_sharpe(log_ret, self.max_sharpe_portfolio().x)
 
-        frontier_returns = np.linspace(1.05*rets.min(), 0.95*rets.max(), points)
+        frontier_returns = np.linspace(1.05 * rets.min(), 0.95 * rets.max(), points)
 
         with Pool(processes=cpu_count() - 1) as pool:  # Multiprocessing to speed up frontier calculation
-            ret_weights = list(tqdm(pool.imap_unordered(self.weights_for_return, frontier_returns),
-                                    desc='Creating Frontier', total=points))
+            results = list(tqdm(pool.imap_unordered(self.weights_for_return, frontier_returns),
+                                desc='Creating Frontier', total=points))
 
-        frontier_vols = [w.fun for w in ret_weights]
+        frontier_weights = [np.array(r['x']) for r in results]
+        frontier_vols = []
+        i = 0
+        for w in frontier_weights:
+            r, v, s = self._calc_ret_vol_sharpe(log_ret, w)
+            if i < 5:
+                print(w.flatten())
+                print(v[0][0], '\n\n')
+            i += 1
+            frontier_vols.append(v[0][0])
+        # print(frontier_vols)
 
         plt.style.use('fivethirtyeight')
         plt.figure(figsize=figsize)
@@ -89,25 +100,38 @@ class MinimumVariancePortfolio:
         elif isinstance(self.__log_ret, pd.DataFrame):
             log_ret = self.__log_ret
 
-        def min_vol(weights):
-            return self._calc_ret_vol_sharpe(log_ret, weights)[1]  # Returns volatility given a set of weights
+        initvals = {'x': matrix(np.zeros(log_ret.shape[1]) / log_ret.shape[1], tc='d')}
 
-        def port_return(weights):
-            return self._calc_ret_vol_sharpe(log_ret, weights)[0]
-
-        guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]  # Initial Guess of equal weights
-        bounds = tuple((0, 1) for _ in range(log_ret.shape[1]))  # Only positive, un-leveraged positions
-        constraints = ({'type': 'eq',
-                        'fun': lambda weights: np.sum(weights) - 1},  # Ensures weights sum to 1
-                       {'type': 'eq',
-                        'fun': lambda weights: port_return(weights) - ret_val})  # Find desired return
-        results = minimize(fun=min_vol,
-                           x0=guess,
-                           method='SLSQP',
-                           options={'disp': True},
-                           bounds=bounds,
-                           constraints=constraints)
+        P = matrix(log_ret.cov().values, tc='d')
+        q = matrix(np.zeros((log_ret.shape[1], 1)), tc='d')
+        G = matrix(np.diag([-1 for _ in range(log_ret.shape[1])]), tc='d')
+        h = matrix(np.zeros(log_ret.shape[1]), tc='d')
+        A = matrix(np.array([np.ones((1, log_ret.shape[1])).flatten(), log_ret.mean().values.flatten()]), tc='d')
+        # A = matrix(np.ones((1, log_ret.shape[1])))
+        # b = matrix(np.array([[1], [ret_val]]), tc='d')
+        b = matrix([1.0, ret_val], tc='d')
+        results = solvers.qp(P=P, q=q, G=G, h=h, A=A, b=b, initvals=initvals)
         return results
+
+        # def min_vol(weights):
+        #     return self._calc_ret_vol_sharpe(log_ret, weights)[1]  # Returns volatility given a set of weights
+        #
+        # def port_return(weights):
+        #     return self._calc_ret_vol_sharpe(log_ret, weights)[0]
+        #
+        # guess = np.ones(log_ret.shape[1]) / log_ret.shape[1]  # Initial Guess of equal weights
+        # bounds = tuple((0, 1) for _ in range(log_ret.shape[1]))  # Only positive, un-leveraged positions
+        # constraints = ({'type': 'eq',
+        #                 'fun': lambda weights: np.sum(weights) - 1},  # Ensures weights sum to 1
+        #                {'type': 'eq',
+        #                 'fun': lambda weights: port_return(weights) - ret_val})  # Find desired return
+        # results = minimize(fun=min_vol,
+        #                    x0=guess,
+        #                    method='SLSQP',
+        #                    options={'disp': True},
+        #                    bounds=bounds,
+        #                    constraints=constraints)
+        # return results
 
     def _sim_portfolios(self, log_ret, iters=5000):
         weights = np.zeros((iters, log_ret.shape[1]))  # Vector for weights
