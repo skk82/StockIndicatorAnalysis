@@ -34,7 +34,7 @@ class MinimumVariancePortfolio:
 
         frontier_returns = np.linspace(1.05 * rets.min(), 0.95 * rets.max(), points)
 
-        with Pool(processes=cpu_count() - 1) as pool:  # Multiprocessing to speed up frontier calculation
+        with Pool(processes=min((cpu_count() - 1), 8)) as pool:  # Multiprocessing to speed up frontier calculation
             results = list(tqdm(pool.imap_unordered(self.weights_for_return, frontier_returns),
                                 desc='Creating Frontier', total=points))
 
