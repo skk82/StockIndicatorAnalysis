@@ -99,7 +99,7 @@ class MinimumVariancePortfolio:
 
         initvals = {'x': matrix(np.zeros(ret_mat.shape[1]) / ret_mat.shape[1], tc='d')}
 
-        P = matrix(ret_mat.cov().values, tc='d')  # Covariance matrix of returns
+        P = 2*matrix(ret_mat.cov().values, tc='d')  # Covariance matrix of returns
         q = matrix(np.zeros((ret_mat.shape[1], 1)), tc='d')
 
         # Negative identity matrix times each weight must be less than zero, non-negative constraint
@@ -107,7 +107,7 @@ class MinimumVariancePortfolio:
         h = matrix(np.zeros(ret_mat.shape[1]), tc='d')
 
         # The sum of the weights must be 1 and the weighted average of returns must be the desired ret_val
-        A = matrix(np.array([np.ones((1, ret_mat.shape[1])).flatten(), ret_mat.mean().values.flatten()]), tc='d')
+        A = matrix(np.vstack([np.ones((1, ret_mat.shape[1])), ret_mat.mean().values]), tc='d')
         b = matrix([1.0, ret_val], tc='d')
 
         results = solvers.qp(P=P, q=q, G=G, h=h, A=A, b=b, initvals=initvals)
