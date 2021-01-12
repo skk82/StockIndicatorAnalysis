@@ -28,10 +28,6 @@ class MinimumVariancePortfolio:
         ret_vol = rets[vols.argmin()]
         vol_vol = vols.min()
 
-        sharpe_dict = self.max_sharpe_portfolio(nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)
-        ret_sharpe = sharpe_dict['return']
-        vol_sharpe = sharpe_dict['risk']
-
         frontier_returns = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), points)
 
         frontier_vols = np.array([])
@@ -44,6 +40,10 @@ class MinimumVariancePortfolio:
         frontier_returns = frontier_returns[frontier_vols > 0]
         frontier_vols = frontier_vols[frontier_vols > 0]
 
+        frontier_sharpe = frontier_returns / frontier_vols
+        ret_sharpe = frontier_returns[frontier_sharpe.argmax()]
+        vol_sharpe = frontier_vols[frontier_sharpe.argmax()]
+
         plt.style.use('fivethirtyeight')
         plt.figure(figsize=figsize)
         plt.xlabel('Volatility')
@@ -54,7 +54,8 @@ class MinimumVariancePortfolio:
         plt.scatter(vols, rets, c=sharpe, cmap='YlGnBu', s=50, alpha=0.3, zorder=1)
         plt.colorbar(label='Sharpe Ratio')
 
-        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label='Maximum Sharpe Ratio', zorder=3)
+        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label=f'Maximum Sharpe Ratio '
+                                                                               f'{frontier_sharpe.max()}', zorder=3)
         plt.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio', zorder=4)
 
         plt.legend(labelspacing=0.5, loc='best')
@@ -71,30 +72,26 @@ class MinimumVariancePortfolio:
         elif isinstance(self.__ret_mat, pd.DataFrame):
             ret_mat = self.__ret_mat
 
-        mu = ret_mat.mean().values.reshape((1, ret_mat.shape[1]))
-        sigma = ret_mat.cov().values
+        rets = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), ret_mat.shape[1]*200)
 
-        w = cp.Variable(mu.shape[1])
+        vols = np.array([])
+        for r in tqdm(rets, desc='Calculating Sharpe'):
+            result = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)['risk']
+            risk = result['risk']
+            weights = result['weights']
+            vols = np.append(vols, risk)
 
-        ret = cp.matmul(mu, w)
-        risk = cp.quad_form(w, sigma)
+        rets = rets[~np.isnan(vols)]
+        weights = weights[~np.isnan(vols)]
+        vols = vols[~np.isnan(vols)]
+        rets = rets[vols > 0]
+        weights = weights[vols > 0]
+        vols = vols[vols > 0]
 
-        sharpe = -ret / cp.sqrt(risk)
+        sharpe = rets / vols
 
-        constraints = [
-            cp.sum(w) == leverage
-        ]
-
-        if nonneg:
-            constraints.append(w >= 0)
-        else:
-            constraints.append(w >= -1)
-
-        problem = cp.Problem(cp.Minimize(sharpe), constraints=constraints)
-
-        problem.solve()
-
-        return {'sharpe': problem.value, 'return': ret.value, 'risk': np.sqrt(risk.value), 'weights': w.value}
+        return {'sharpe': sharpe.max(), 'return': rets[sharpe.argmax()], 'risk': vols[sharpe.argmax()],
+                'weights': weights[sharpe.argmax()]}
 
     def weights_for_return(self, ret_val, *, nonneg=True, leverage=1, column='Close', industry='ALL', ret_mat=None):
         if not isinstance(ret_mat, pd.DataFrame) and not isinstance(self.__ret_mat, pd.DataFrame):
@@ -109,23 +106,23 @@ class MinimumVariancePortfolio:
 
         sigma = ret_mat.cov().values
 
-        w = cp.Variable(sigma.shape[0])
-        risk = cp.quad_form(w, sigma)
+        weights = cp.Variable(sigma.shape[0])
+        risk = cp.quad_form(weights, sigma)
 
         constraints = [
-            cp.sum(w) == leverage,
-            cp.matmul(ret_mat.mean().values, w) == ret_val
+            cp.sum(weights) == leverage,
+            cp.matmul(ret_mat.mean().values, weights) == ret_val
         ]
 
         if nonneg:
-            constraints.append(w >= 0)
+            constraints.append(weights >= 0)
         else:
-            constraints.append(w >= -1)
+            constraints.append(weights >= -1)
 
         problem = cp.Problem(cp.Minimize(risk), constraints=constraints)
         problem.solve()
 
-        return {'risk': np.sqrt(risk.value), 'weights': w.value}
+        return {'risk': np.sqrt(risk.value), 'weights': weights.value}
 
     def _sim_portfolios(self, ret_mat, iters=5000):
         weights = np.zeros((iters, ret_mat.shape[1]))  # Vector for weights
