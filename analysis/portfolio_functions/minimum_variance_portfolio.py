@@ -1,11 +1,7 @@
-from multiprocessing import Pool, cpu_count
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-from scipy.optimize import minimize, Bounds
-# from cvxopt import matrix, solvers
 from tqdm import tqdm
 
 
