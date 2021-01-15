@@ -1,7 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import cvxpy as cp
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 from tqdm import tqdm
 
 from portfolio_functions.Errors.Errors import InfeasibleError
@@ -53,18 +54,32 @@ class MinimumVariancePortfolio:
         ret_vol = frontier_returns[frontier_vols.argmin()]
         vol_vol = frontier_vols.min()
 
+        # Formatting figure
         plt.style.use('fivethirtyeight')
-        plt.figure(figsize=figsize)
-        plt.xlabel('Volatility')
-        plt.ylabel('Return')
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-        # plt.plot(frontier_vols, frontier_returns, ':', color='red', linewidth=3, zorder=2)
-        plt.plot(frontier_vols, frontier_returns, cmap=frontier_sharpe, linewidth=3, zorder=2)
+        # Setting labels
+        ax.set_title('Minimum Variance Frontier')
+        ax.set_xlabel('Volatility')
+        ax.set_ylabel('Return')
 
-        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label=f'Maximum Sharpe Ratio', zorder=3)
-        plt.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio', zorder=4)
+        # Plotting frontier with gradient for Sharpe ratio
+        frontier_points = np.array([frontier_vols, frontier_returns]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([frontier_points[:-1], frontier_points[1:]], axis=1)
+        norm = plt.Normalize(frontier_sharpe.min(), frontier_sharpe.max())
+        lc = LineCollection(segments, cmap='viridis', norm=norm)
+        lc.set_array(frontier_sharpe)
+        lc.set_linewidth(4)
+        line = ax.add_collection(lc)
+        fig.colorbar(line, ax=ax)
 
-        plt.legend(labelspacing=0.5, loc='best')
+        # Plotting point for maximum Sharpe ratio
+        ax.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label=f'Maximum Sharpe Ratio')
+
+        # Plotting point for minimum variance portfolio
+        ax.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio')
+
+        ax.legend(labelspacing=0.5, loc='best')
         plt.show()
 
     def max_sharpe_portfolio(self, *, column='Close', nonneg=True, leverage=1, industry='ALL', ret_mat=None):
