@@ -46,7 +46,7 @@ class MinimumVariancePortfolio:
         frontier_vols = frontier_vols[frontier_vols > 0]
 
         # Finding max Sharpe ratio portfolio
-        frontier_sharpe = frontier_returns*252 / (frontier_vols*np.sqrt(252))
+        frontier_sharpe = frontier_returns / frontier_vols * 252 / np.sqrt(252)
         ret_sharpe = frontier_returns[frontier_sharpe.argmax()]
         vol_sharpe = frontier_vols[frontier_sharpe.argmax()]
 
@@ -75,7 +75,7 @@ class MinimumVariancePortfolio:
 
         # Plotting point for maximum Sharpe ratio
         ax.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500,
-                   label=f'Maximum Sharpe Ratio: {ret_sharpe*252/(vol_sharpe*np.sqrt(252)):.2f}')
+                   label=f'Maximum Sharpe Ratio: {frontier_sharpe.max():.2f}')
 
         # Plotting point for minimum variance portfolio
         ax.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio')
