@@ -115,7 +115,7 @@ class MinimumVariancePortfolio:
         return {'sharpe': sharpe.max(), 'daily return': rets[sharpe.argmax()], 'daily risk': vols[sharpe.argmax()],
                 'weights': weights[sharpe.argmax()]}
 
-    def weights_for_return(self, ret_val, *, column='Close', industry='ALL', ret_mat=None):
+    def weights_for_return(self, ret_val, *, column='Close', nonneg=True, industry='ALL', ret_mat=None):
         if not isinstance(ret_mat, pd.DataFrame) and not isinstance(self.__ret_mat, pd.DataFrame):
             if industry == 'ALL':
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
