@@ -4,6 +4,8 @@ import pandas as pd
 import cvxpy as cp
 from tqdm import tqdm
 
+from portfolio_functions.Errors.Errors import InfeasibleError
+
 
 class MinimumVariancePortfolio:
 
@@ -23,24 +25,31 @@ class MinimumVariancePortfolio:
         ret_mat = ret_mat.dropna()
         self.__ret_mat = ret_mat
 
-        weights, rets, vols, sharpe = self._sim_portfolios(ret_mat, iters)  # Simulates random portfolio weights
-
         frontier_returns = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), points)
 
         frontier_vols = np.array([])
-        for r in tqdm(frontier_returns, desc='Creating Frontier'):
-            risk = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)['risk']
-            frontier_vols = np.append(frontier_vols, risk)
+        bad_indices = []
 
+        for r in tqdm(frontier_returns, desc='Creating Frontier'):
+            try:
+                risk = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)['risk']
+                frontier_vols = np.append(frontier_vols, risk)
+            except InfeasibleError:
+                bad_indices.append(np.argwhere(frontier_returns == r))
+
+        # Cleaning frontier returns
+        frontier_returns = np.delete(frontier_returns, bad_indices)
         frontier_returns = frontier_returns[~np.isnan(frontier_vols)]
         frontier_vols = frontier_vols[~np.isnan(frontier_vols)]
         frontier_returns = frontier_returns[frontier_vols > 0]
         frontier_vols = frontier_vols[frontier_vols > 0]
 
+        # Finding max Sharpe ratio portfolio
         frontier_sharpe = frontier_returns / frontier_vols
         ret_sharpe = frontier_returns[frontier_sharpe.argmax()]
         vol_sharpe = frontier_vols[frontier_sharpe.argmax()]
 
+        # Finding min volatility portfolio
         ret_vol = frontier_returns[frontier_vols.argmin()]
         vol_vol = frontier_vols.min()
 
@@ -49,13 +58,10 @@ class MinimumVariancePortfolio:
         plt.xlabel('Volatility')
         plt.ylabel('Return')
 
-        plt.plot(frontier_vols, frontier_returns, ':', color='red', linewidth=3, zorder=2)
+        # plt.plot(frontier_vols, frontier_returns, ':', color='red', linewidth=3, zorder=2)
+        plt.plot(frontier_vols, frontier_returns, cmap=frontier_sharpe, linewidth=3, zorder=2)
 
-        plt.scatter(vols, rets, c=sharpe, cmap='YlGnBu', s=50, alpha=0.3, zorder=1)
-        plt.colorbar(label='Sharpe Ratio')
-
-        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label=f'Maximum Sharpe Ratio '
-                                                                               f'{frontier_sharpe.max()}', zorder=3)
+        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label=f'Maximum Sharpe Ratio', zorder=3)
         plt.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio', zorder=4)
 
         plt.legend(labelspacing=0.5, loc='best')
@@ -122,32 +128,7 @@ class MinimumVariancePortfolio:
         problem = cp.Problem(cp.Minimize(risk), constraints=constraints)
         problem.solve()
 
-        if risk.value is None:
-            print('risk:', risk.value)
-            print('problem:', problem)
-            raise Exception
+        if problem.status == 'infeasible':
+            raise InfeasibleError
 
         return {'risk': np.sqrt(risk.value), 'weights': weights.value}
-
-    def _sim_portfolios(self, ret_mat, iters=5000):
-        weights = np.zeros((iters, ret_mat.shape[1]))  # Vector for weights
-        rets = np.zeros(iters)  # Vector for returns
-        vols = np.zeros(iters)  # Vector for volatilities
-        sharpe = np.zeros(iters)  # Vector for Sharpe ratios
-
-        for i in tqdm(range(iters), desc='Simulating Portfolios'):
-            # Randomly generate weights and normalize between 0 and 1
-            whole_weights = np.random.random(ret_mat.shape[1])
-            weights[i, :] = whole_weights / np.sum(whole_weights)
-
-            rets[i], vols[i], sharpe[i] = self._calc_ret_vol_sharpe(ret_mat, weights[i, :])
-
-        return weights, rets, vols, sharpe
-
-    @staticmethod
-    def _calc_ret_vol_sharpe(ret_mat, weights):
-        # Annualized portfolio return and volatility
-        ret = np.dot(ret_mat.mean(), weights)
-        vol = np.sqrt(np.dot(weights.T, np.dot(ret_mat.cov(), weights)))
-        sharpe = ret / vol
-        return ret, vol, sharpe
