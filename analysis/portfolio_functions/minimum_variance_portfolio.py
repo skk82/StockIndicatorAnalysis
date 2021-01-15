@@ -25,9 +25,6 @@ class MinimumVariancePortfolio:
 
         weights, rets, vols, sharpe = self._sim_portfolios(ret_mat, iters)  # Simulates random portfolio weights
 
-        ret_vol = rets[vols.argmin()]
-        vol_vol = vols.min()
-
         frontier_returns = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), points)
 
         frontier_vols = np.array([])
@@ -43,6 +40,9 @@ class MinimumVariancePortfolio:
         frontier_sharpe = frontier_returns / frontier_vols
         ret_sharpe = frontier_returns[frontier_sharpe.argmax()]
         vol_sharpe = frontier_vols[frontier_sharpe.argmax()]
+
+        ret_vol = frontier_returns[frontier_vols.argmin()]
+        vol_vol = frontier_vols.min()
 
         plt.style.use('fivethirtyeight')
         plt.figure(figsize=figsize)
@@ -121,6 +121,11 @@ class MinimumVariancePortfolio:
 
         problem = cp.Problem(cp.Minimize(risk), constraints=constraints)
         problem.solve()
+
+        if risk.value is None:
+            print('risk:', risk.value)
+            print('problem:', problem)
+            raise Exception
 
         return {'risk': np.sqrt(risk.value), 'weights': weights.value}
 
