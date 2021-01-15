@@ -1,10 +1,11 @@
-from multiprocessing import Pool, cpu_count
-
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize, Bounds
+import cvxpy as cp
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 from tqdm import tqdm
+
+from portfolio_functions.Errors.Errors import InfeasibleError
 
 
 class MinimumVariancePortfolio:
@@ -13,10 +14,8 @@ class MinimumVariancePortfolio:
         self.df = df
         self.__ret_mat = None
 
-    def plot_minimum_variance_frontier(self, column='Close', *, industry='ALL', iters=5000, points=300,
-                                       figsize=(12, 8), seed=42):
-        assert points == 0 or points >= 300, '"points" must be 0 or greater than 300 to ensure that any curve plotted' \
-                                             'is smooth'
+    def plot_minimum_variance_frontier(self, column='Close', *, nonneg=True, leverage=1, industry='ALL',
+                                       points=300, figsize=(12, 8), seed=42):
         np.random.seed(seed)
         if industry == 'ALL':
             df = self.df.pivot_table(values=column, index='Date', columns='ticker')
@@ -24,60 +23,97 @@ class MinimumVariancePortfolio:
             df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
 
         ret_mat = df.pct_change()
+        ret_mat = ret_mat.dropna()
         self.__ret_mat = ret_mat
 
-        weights, rets, vols, sharpe = self._sim_portfolios(ret_mat, iters)  # Simulates random portfolio weights
+        frontier_returns = np.linspace(ret_mat.mean().min(), ret_mat.mean().max()*leverage, points)
 
-        ret_vol = rets[vols.argmin()]
-        vol_vol = vols.min()
+        frontier_vols = np.array([])
+        bad_indices = []
 
-        ret_sharpe, vol_sharpe, _ = self._calc_ret_vol_sharpe(ret_mat, self.max_sharpe_portfolio().x)
+        for r in tqdm(frontier_returns, desc='Creating Frontier'):
+            try:
+                risk = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)['risk']
+                frontier_vols = np.append(frontier_vols, risk)
+            except InfeasibleError:
+                bad_indices.append(np.argwhere(frontier_returns == r))
 
-        frontier_returns = np.linspace(1.05*rets.min(), 0.95*rets.max(), points)
+        # Cleaning frontier returns
+        frontier_returns = np.delete(frontier_returns, bad_indices)
+        frontier_returns = frontier_returns[~np.isnan(frontier_vols)]
+        frontier_vols = frontier_vols[~np.isnan(frontier_vols)]
+        frontier_returns = frontier_returns[frontier_vols > 0]
+        frontier_vols = frontier_vols[frontier_vols > 0]
 
-        with Pool(processes=cpu_count() - 1) as pool:  # Multiprocessing to speed up frontier calculation
-            ret_weights = list(tqdm(pool.imap_unordered(self.weights_for_return, frontier_returns),
-                                    desc='Creating Frontier', total=points))
+        # Finding max Sharpe ratio portfolio
+        frontier_sharpe = frontier_returns / frontier_vols * 252 / np.sqrt(252)
+        ret_sharpe = frontier_returns[frontier_sharpe.argmax()]
+        vol_sharpe = frontier_vols[frontier_sharpe.argmax()]
 
-        frontier_vols = [w.fun for w in ret_weights]
+        # Finding min volatility portfolio
+        ret_vol = frontier_returns[frontier_vols.argmin()]
+        vol_vol = frontier_vols.min()
 
+        # Formatting figure
         plt.style.use('fivethirtyeight')
-        plt.figure(figsize=figsize)
-        plt.xlabel('Volatility')
-        plt.ylabel('Return')
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-        plt.plot(frontier_vols, frontier_returns, ':', color='red', linewidth=3, zorder=2)
+        # Setting labels
+        ax.set_title('Minimum Variance Frontier')
+        ax.set_xlabel('Daily Volatility')
+        ax.set_ylabel('Daily Return')
 
-        plt.scatter(vols, rets, c=sharpe, cmap='YlGnBu', s=50, alpha=0.3, zorder=1)
-        plt.colorbar(label='Sharpe Ratio')
+        # Plotting frontier with gradient for Sharpe ratio
+        frontier_points = np.array([frontier_vols, frontier_returns]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([frontier_points[:-1], frontier_points[1:]], axis=1)
+        norm = plt.Normalize(frontier_sharpe.min(), frontier_sharpe.max())
+        lc = LineCollection(segments, cmap='viridis', norm=norm)
+        lc.set_array(frontier_sharpe)
+        lc.set_linewidth(4)
+        line = ax.add_collection(lc)
+        fig.colorbar(line, ax=ax)
 
-        plt.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label='Maximum Sharpe Ratio', zorder=3)
-        plt.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio', zorder=4)
+        # Plotting point for maximum Sharpe ratio
+        ax.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500,
+                   label=f'Maximum Sharpe Ratio: {frontier_sharpe.max():.2f}')
 
-        plt.legend(labelspacing=0.5, loc='best')
+        # Plotting point for minimum variance portfolio
+        ax.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio')
+
+        ax.legend(labelspacing=0.5, loc=2)
         plt.show()
 
-    def max_sharpe_portfolio(self, *, column='Close', industry='ALL', ret_mat=None):
-        if not isinstance(ret_mat, pd.DataFrame):
+    def max_sharpe_portfolio(self, *, column='Close', nonneg=True, leverage=1, industry='ALL', ret_mat=None):
+        if not isinstance(ret_mat, pd.DataFrame) and not isinstance(self.__ret_mat, pd.DataFrame):
             if industry == 'ALL':
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
             else:
                 df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
             ret_mat = df.pct_change()
+            ret_mat = ret_mat.dropna()
+        elif isinstance(self.__ret_mat, pd.DataFrame):
+            ret_mat = self.__ret_mat
 
-        def neg_sharpe(weights):
-            return -self._calc_ret_vol_sharpe(ret_mat, weights)[2]  # Maximize Sharpe by minimizing negative Sharpe
+        rets = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), ret_mat.shape[1]*200)
 
-        guess = np.ones(ret_mat.shape[1]) / ret_mat.shape[1]  # Initial guess of equal weights
-        bounds = tuple((0, 1) for _ in range(ret_mat.shape[1]))  # Only positive, un-leveraged positions
-        constraints = ({'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},)  # Weights must sum to 1
-        results = minimize(fun=neg_sharpe,
-                           x0=guess,
-                           method='SLSQP',
-                           options={'disp': False},
-                           bounds=bounds,
-                           constraints=constraints)
-        return results
+        vols = np.array([])
+        for r in tqdm(rets, desc='Calculating Sharpe'):
+            result = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)['risk']
+            risk = result['risk']
+            weights = result['weights']
+            vols = np.append(vols, risk)
+
+        rets = rets[~np.isnan(vols)]
+        weights = weights[~np.isnan(vols)]
+        vols = vols[~np.isnan(vols)]
+        rets = rets[vols > 0]
+        weights = weights[vols > 0]
+        vols = vols[vols > 0]
+
+        sharpe = rets / vols * 252 / np.sqrt(252)
+
+        return {'sharpe': sharpe.max(), 'daily return': rets[sharpe.argmax()], 'daily risk': vols[sharpe.argmax()],
+                'weights': weights[sharpe.argmax()]}
 
     def weights_for_return(self, ret_val, *, column='Close', industry='ALL', ret_mat=None):
         if not isinstance(ret_mat, pd.DataFrame) and not isinstance(self.__ret_mat, pd.DataFrame):
@@ -86,48 +122,29 @@ class MinimumVariancePortfolio:
             else:
                 df = self.df[self.df.industry == industry].pivot_table(values=column, index='Date', columns='ticker')
             ret_mat = df.pct_change()
+            ret_mat = ret_mat.dropna()
         elif isinstance(self.__ret_mat, pd.DataFrame):
             ret_mat = self.__ret_mat
 
-        def min_vol(weights):
-            return self._calc_ret_vol_sharpe(ret_mat, weights)[1]  # Returns volatility given a set of weights
+        sigma = ret_mat.cov().values
 
-        def port_return(weights):
-            return self._calc_ret_vol_sharpe(ret_mat, weights)[0]
+        weights = cp.Variable(sigma.shape[0])
+        risk = cp.quad_form(weights, sigma)
 
-        guess = np.ones(ret_mat.shape[1]) / ret_mat.shape[1]  # Initial Guess of equal weights
-        bounds = tuple((0, 1) for _ in range(ret_mat.shape[1]))  # Only positive, un-leveraged positions
-        constraints = ({'type': 'eq',
-                        'fun': lambda weights: np.sum(weights) - 1},  # Ensures weights sum to 1
-                       {'type': 'eq',
-                        'fun': lambda weights: port_return(weights) - ret_val})  # Find desired return
-        results = minimize(fun=min_vol,
-                           x0=guess,
-                           method='SLSQP',
-                           options={'disp': True},
-                           bounds=bounds,
-                           constraints=constraints)
-        return results
+        constraints = [
+            cp.sum(weights) == leverage,
+            cp.matmul(ret_mat.mean().values, weights) == ret_val
+        ]
 
-    def _sim_portfolios(self, ret_mat, iters=5000):
-        weights = np.zeros((iters, ret_mat.shape[1]))  # Vector for weights
-        rets = np.zeros(iters)  # Vector for returns
-        vols = np.zeros(iters)  # Vector for volatilities
-        sharpe = np.zeros(iters)  # Vector for Sharpe ratios
+        if nonneg:
+            constraints.append(weights >= 0)
+        else:
+            constraints.append(weights >= -1)
 
-        for i in tqdm(range(iters), desc='Simulating Portfolios'):
-            # Randomly generate weights and normalize between 0 and 1
-            whole_weights = np.random.random(ret_mat.shape[1])
-            weights[i, :] = whole_weights / np.sum(whole_weights)
+        problem = cp.Problem(cp.Minimize(risk), constraints=constraints)
+        problem.solve()
 
-            rets[i], vols[i], sharpe[i] = self._calc_ret_vol_sharpe(ret_mat, weights[i, :])
+        if problem.status == 'infeasible':
+            raise InfeasibleError
 
-        return weights, rets, vols, sharpe
-
-    @staticmethod
-    def _calc_ret_vol_sharpe(ret_mat, weights):
-        # Annualized portfolio return and volatility
-        ret = np.dot(ret_mat.mean(), weights) * 252
-        vol = np.sqrt(np.dot(weights.T, np.dot(ret_mat.cov(), weights))) * np.sqrt(252)
-        sharpe = ret / vol
-        return ret, vol, sharpe
+        return {'risk': np.sqrt(risk.value), 'weights': weights.value}
