@@ -14,7 +14,7 @@ class MinimumVariancePortfolio:
         self.df = df
         self.__ret_mat = None
 
-    def plot_minimum_variance_frontier(self, column='Close', *, nonneg=True, leverage=1, industry='ALL', iters=5000,
+    def plot_minimum_variance_frontier(self, column='Close', *, nonneg=True, leverage=1, industry='ALL',
                                        points=300, figsize=(12, 8), seed=42):
         np.random.seed(seed)
         if industry == 'ALL':
@@ -26,7 +26,7 @@ class MinimumVariancePortfolio:
         ret_mat = ret_mat.dropna()
         self.__ret_mat = ret_mat
 
-        frontier_returns = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), points)
+        frontier_returns = np.linspace(ret_mat.mean().min(), ret_mat.mean().max()*leverage, points)
 
         frontier_vols = np.array([])
         bad_indices = []
@@ -46,7 +46,7 @@ class MinimumVariancePortfolio:
         frontier_vols = frontier_vols[frontier_vols > 0]
 
         # Finding max Sharpe ratio portfolio
-        frontier_sharpe = frontier_returns / frontier_vols
+        frontier_sharpe = frontier_returns*252 / (frontier_vols*np.sqrt(252))
         ret_sharpe = frontier_returns[frontier_sharpe.argmax()]
         vol_sharpe = frontier_vols[frontier_sharpe.argmax()]
 
@@ -60,8 +60,8 @@ class MinimumVariancePortfolio:
 
         # Setting labels
         ax.set_title('Minimum Variance Frontier')
-        ax.set_xlabel('Volatility')
-        ax.set_ylabel('Return')
+        ax.set_xlabel('Daily Volatility')
+        ax.set_ylabel('Daily Return')
 
         # Plotting frontier with gradient for Sharpe ratio
         frontier_points = np.array([frontier_vols, frontier_returns]).T.reshape(-1, 1, 2)
@@ -74,12 +74,13 @@ class MinimumVariancePortfolio:
         fig.colorbar(line, ax=ax)
 
         # Plotting point for maximum Sharpe ratio
-        ax.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500, label=f'Maximum Sharpe Ratio')
+        ax.scatter(vol_sharpe, ret_sharpe, marker='*', c='lime', s=500,
+                   label=f'Maximum Sharpe Ratio: {ret_sharpe*252/(vol_sharpe*np.sqrt(252)):.2f}')
 
         # Plotting point for minimum variance portfolio
         ax.scatter(vol_vol, ret_vol, marker='*', c='orange', s=500, label='Minimum Variance Portfolio')
 
-        ax.legend(labelspacing=0.5, loc='best')
+        ax.legend(labelspacing=0.5, loc=2)
         plt.show()
 
     def max_sharpe_portfolio(self, *, column='Close', nonneg=True, leverage=1, industry='ALL', ret_mat=None):
