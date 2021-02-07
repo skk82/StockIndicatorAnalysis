@@ -83,7 +83,9 @@ class MinimumVariancePortfolio:
         ax.legend(labelspacing=0.5, loc=2)
         plt.show()
 
-    def max_sharpe_portfolio(self, *, column='Close', nonneg=True, leverage=1, industry='ALL', ret_mat=None):
+    def max_sharpe_portfolio(self, *, column='Close', nonneg=True, leverage=1, industry='ALL', ret_mat=None,
+                             points=300):
+        # Checks to see if dataframe is given and for what column we want to use
         if not isinstance(ret_mat, pd.DataFrame) and not isinstance(self.__ret_mat, pd.DataFrame):
             if industry == 'ALL':
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
@@ -94,28 +96,37 @@ class MinimumVariancePortfolio:
         elif isinstance(self.__ret_mat, pd.DataFrame):
             ret_mat = self.__ret_mat
 
-        rets = np.linspace(ret_mat.mean().min(), ret_mat.mean().max(), ret_mat.shape[1]*200)
+        # Creates a list of various returns
+        rets = np.linspace(ret_mat.mean().min(), ret_mat.mean().max()*leverage, points)
+        bad_indices = []
 
+        weights = np.array([1/ret_mat.shape[1] for _ in range(ret_mat.shape[1])], ndmin=2)
         vols = np.array([])
         for r in tqdm(rets, desc='Calculating Sharpe'):
-            result = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)['risk']
-            risk = result['risk']
-            weights = result['weights']
-            vols = np.append(vols, risk)
+            try:
+                result = self.weights_for_return(r, nonneg=nonneg, leverage=leverage, ret_mat=ret_mat)
+                vols = np.append(vols, result['risk'])
+                weights = np.vstack([weights, np.array(result['weights'])])
+            except InfeasibleError:
+                bad_indices.append(np.argwhere(rets == r))
 
+        rets = np.delete(rets, bad_indices)
         rets = rets[~np.isnan(vols)]
+        weights = weights[1:, :]
         weights = weights[~np.isnan(vols)]
         vols = vols[~np.isnan(vols)]
         rets = rets[vols > 0]
         weights = weights[vols > 0]
         vols = vols[vols > 0]
 
+        # Calculates the Sharpe ratio for each return value
         sharpe = rets / vols * 252 / np.sqrt(252)
 
         return {'sharpe': sharpe.max(), 'daily return': rets[sharpe.argmax()], 'daily risk': vols[sharpe.argmax()],
                 'weights': weights[sharpe.argmax()]}
 
     def weights_for_return(self, ret_val, *, column='Close', nonneg=True, leverage=1, industry='ALL', ret_mat=None):
+        # Checks to see if dataframe is given and for what column we want to use
         if not isinstance(ret_mat, pd.DataFrame) and not isinstance(self.__ret_mat, pd.DataFrame):
             if industry == 'ALL':
                 df = self.df.pivot_table(values=column, index='Date', columns='ticker')
@@ -131,11 +142,13 @@ class MinimumVariancePortfolio:
         weights = cp.Variable(sigma.shape[0])
         risk = cp.quad_form(weights, sigma)
 
+        # Builds constraints for dynamic program
         constraints = [
-            cp.sum(weights) == leverage,
-            cp.matmul(ret_mat.mean().values, weights) == ret_val
+            cp.sum(weights) == leverage,  # Defines leverage
+            cp.matmul(ret_mat.mean().values, weights) == ret_val  # Defines specific return we are seeking
         ]
 
+        # Includes bounds for potential shorting
         if nonneg:
             constraints.append(weights >= 0)
         else:
