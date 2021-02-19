@@ -24,5 +24,6 @@ format: `{'<industry 1>': ['<ticker 1>', '<ticker 2>', ...], '<industry 2>': ['<
 - [ ] Add theory to notebooks
 - [ ] Quadratic Programming
   - [ ] Incorporate different lending and borrowing rates
-  - [ ] Adjust constraints to be $\geq$ desired return
+  - [ ] Adjust constraints to be greater than or equal to desired return
+  - [ ] Consider cases where risk free rate is greater than return of minimum variance portfolio
 - [ ] Begin Fama-French Three Factor Model
