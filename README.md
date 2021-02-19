@@ -17,3 +17,12 @@ optional with `end` and
 resulting files in a specific location where the default is a directory called indices in the root directory. Lastly,
 `tickers` can be specified using either a dictionary or path to a txt file containing a dictionary following the
 format: `{'<industry 1>': ['<ticker 1>', '<ticker 2>', ...], '<industry 2>': ['<ticker 3>', '<ticker 4>'], ...}`.
+
+## Next Steps
+
+- [ ] Include documentation
+- [ ] Add theory to notebooks
+- [ ] Quadratic Programming
+  - [ ] Incorporate different lending and borrowing rates
+  - [ ] Adjust constraints to be $\geq$ desired return
+- [ ] Begin Fama-French Three Factor Model
