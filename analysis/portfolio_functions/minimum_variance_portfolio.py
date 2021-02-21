@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-import cvxpy as cp
+import cvxopt as cp
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from tqdm import tqdm
 
-from portfolio_functions.Errors.Errors import InfeasibleError
+from analysis.portfolio_functions.Errors.Errors import InfeasibleError
 
 
 class MinimumVariancePortfolio:
@@ -126,10 +126,22 @@ class MinimumVariancePortfolio:
         elif isinstance(self.__ret_mat, pd.DataFrame):
             ret_mat = self.__ret_mat
 
-        sigma = ret_mat.cov().values
+        sigma = cp.matrix(ret_mat.cov().values)  # P
 
-        weights = cp.Variable(sigma.shape[0])
-        risk = cp.quad_form(weights, sigma)
+        null = cp.spmatrix([], [], [], (ret_mat.shape[1], 1))  # q: a matrix of zeros
+
+
+        # TODO: include bounds on the weights of each stock
+        ineq_const = cp.matrix(-ret_mat.mean().values)  # G
+
+        ret_val = cp.matrix(ret_val)  # h
+
+        eq_const = cp.matrix(1, (1, 4))
+
+
+        # TODO: Should this be an inequality?
+        one = cp.matrix(leverage)
+
 
         constraints = [
             cp.sum(weights) == leverage,
